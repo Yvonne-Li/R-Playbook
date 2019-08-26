@@ -1,22 +1,44 @@
 #install.packages("dplyr")
 #install.packages("tidyr")
 #install.packages("ggplot2")
+install.packages("wesanderson")
+install.packages("RColorBrewer")
+library(wesanderson)
+library(RColorBrewer)
 #library(dplyr)
 #library(tidyr)
 #library(ggplot2)
 #library(dplyr, quietly = TRUE)
+##############################################
+#ggplot2
+
 Requestors = Requestors %>% 
   mutate(angle = 45*sample(c(0,1),n(),replace = TRUE, prob = c(60,40)))
 
-#set.seed(42)
+#Paletter for CI colors
+#cipalette = c("#333333", "#A8996A", "#CD5806","#B4C9DC","#01395A")
+nb.cols = nrow(Requestors)
+
+mycolors <- colorRampPalette(brewer.pal(8, "Set2"))(nb.cols)
+
 ggplot(
-  Requestors,
-  aes(
-    label = word, size = Occurance,
-    color = factor(sample.int(15
-                              , nrow(Requestors), replace = TRUE))
-  )
-) +
+  Requestors,aes(label = word, size = Occurance, 
+                 color = mycolors)
+  ) +
   geom_text_wordcloud_area(shape = "circle") +
+  scale_color_manual(values = mycolors) +
   scale_size(range = c(3,24)) +
   theme_minimal()
+ 
+
+
+  #scale_colour_manual(values=c("#999999", "#E69F00", "#56B4E9"))
+
+########################################
+#wordcloud 2
+ggwordcloud2(Requestors[, c("word", "Occurance")], 
+color = "random-light", 
+ shape = "circle",
+size = 1.5)
+
+ggwordcloud2(Requestors[, c("word", "Occurance")], min.freq=1, random.order=T, rot.per=.15, colors=cipalette, vfont=c("sans serif","plain"))
