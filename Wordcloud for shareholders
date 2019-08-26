@@ -1,0 +1,22 @@
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("ggplot2")
+#library(dplyr)
+#library(tidyr)
+#library(ggplot2)
+#library(dplyr, quietly = TRUE)
+Requestors = Requestors %>% 
+  mutate(angle = 45*sample(c(0,1),n(),replace = TRUE, prob = c(60,40)))
+
+#set.seed(42)
+ggplot(
+  Requestors,
+  aes(
+    label = word, size = Occurance,
+    color = factor(sample.int(15
+                              , nrow(Requestors), replace = TRUE))
+  )
+) +
+  geom_text_wordcloud_area(shape = "circle") +
+  scale_size(range = c(3,24)) +
+  theme_minimal()
