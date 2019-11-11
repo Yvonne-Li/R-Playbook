@@ -1,0 +1,132 @@
+#Transaction File calculation 
+
+
+df <- dst
+names(df) <-str_replace_all(names(df), c(" " = "_"))
+#df = select(df,Dealer:Gross_Amt)
+names(df)[names(df) == "Gross_Amount"] <- "Gross_Amt"
+names(df)[names(df) == "Transaction_Status"] <- "Trans_Status"
+names(df)[names(df) == "Transaction_Type"] <- "Trans_Type"
+names(df)[names(df) == "Transaction_Date"] <- "Trans_Date"
+names(sales_mapp)[names(sales_mapp) == "TRANS_TYPE"] <- "Type"
+names(sales_mapp)[names(sales_mapp) == "TNSTYPE"] <- "Trans_Type"
+
+er_18 <- fread("er_18.csv")
+er_19 <- fread("er_19.csv")
+er <- rbind(er_18,er_19)
+rm(er_18)
+rm(er_19)
+
+df$Agent = str_pad(as.numeric(df$Agent),4,pad = "0")#fill in 0 before numbers if digit < 4
+head(df)
+
+# for calculating gross amt for a long period of time######################
+#df$Trans_Date <- as.Date(df$Trans_Date,format = "%Y%m%d")
+
+#separate date with no separator for real trans data
+df <- separate(df, Trans_Date, c('year','month','day'), sep = c(4,6), remove = FALSE)
+
+df$Trans_Date_adj <- as.Date(paste(df$year,df$month,df$day,sep = "-"),format = "%Y-%m-%d")
+df <- select(df,-c("year","month","day","Trans_Date"))
+
+print(colnames(df))
+#nrow(df)
+
+#Transaction data calc#############################
+#change colnames in Lauren A project for repetitive analysis
+
+df <-dplyr:: mutate(df,Adj_amt = Gross_Amt*1,adjcash = Gross_Amt *(1),adjfx = Gross_Amt)
+nrow(df)
+head(df)
+
+
+#adj amount
+T_adjamtrest <- dplyr::filter(df,Trans_Status != 1)
+nrow(T_adjamtrest)
+T_adjamt <- dplyr::filter(df, Trans_Status == 1)
+T_adjamt = dplyr::mutate(T_adjamt,Adj_amt = Gross_Amt *(-1))
+nrow(T_adjamt)
+
+df2 <- rbind(T_adjamtrest,T_adjamt)
+nrow(df2)
+#distinct(df2,Adj_amt, .keep_all= TRUE)
+
+df2$adjcash = df2$Adj_amt
+
+#fwrite(df2,"df1.csv",row.names = FALSE)
+
+
+#adj cash
+T_adjcash1 <- dplyr::filter(df2, grepl('CDN|US',Investment_Code))
+T_adjcash1r <- dplyr::filter(df2, !grepl('CDN|US',Investment_Code))
+
+nrow(T_adjcash1) + nrow(T_adjcash1r)
+nrow(T_adjcash1)
+#fwrite(T_adjcash1,"T_adjcash1.csv",row.names = FALSE)
+#fwrite(T_adjcash1r,"T_adjcash1r.csv",row.names = FALSE)
+
+T_adjcash2 <- dplyr::filter(T_adjcash1, grepl('Buy|Sell',Trans_Type))
+T_adjcash2r <- dplyr::filter(T_adjcash1, !grepl('Buy|Sell',Trans_Type))
+nrow(T_adjcash2) + nrow(T_adjcash2r)
+nrow(T_adjcash2) 
+
+
+#fwrite(T_adjcash2,"T_adjcash2.csv",row.names = FALSE)
+#fwrite(T_adjcash2r,"T_adjcash2r.csv",row.names = FALSE)
+
+#T_adjcash3 <- dplyr::filter(T_adjcash2, Trans_Status == 0)
+#T_adjcash3r <- dplyr::filter(T_adjcash2, Trans_Status == 1)
+T_adjcash2 <- mutate(T_adjcash2, adjcash = adjcash *(-1))
+
+df2 <- rbind(T_adjcash1r,T_adjcash2r,T_adjcash2)
+
+nrow(df2)
+#distinct(df,adjcash, .keep_all= TRUE)
+
+df2$adjfx = df2$adjcash
+
+#fwrite(df2,"T_adjcash.csv",row.names = FALSE)
+
+
+#adj fx for any USD transactions
+#for real trans data
+nrow(df2)
+df2 <- df2 %>% dplyr::left_join(er, by = c("Trans_Date_adj" = "Trade_Date"), .keep_all = T)
+
+#df2$Retail_Rate[is.na(df2$Retail_Rate)] <- 0
+sum(is.na(df2$Retail_Rate))
+
+#add column for trans type using salescube mapping file 
+nrow(df2)
+df2 <- df2 %>% dplyr::left_join(sales_mapp, by = "Trans_Type",.keep_all = T)
+sum(df2$Type=="")
+df2$Type[df2$Type==""] <- 0
+nrow(df2)
+
+T_adjfx1 <- dplyr::filter(df2, Investment_Currency == "USD")
+nrow(T_adjfx1)
+
+T_adjfx1r <- dplyr::filter(df2, Investment_Currency != "USD")
+nrow(T_adjfx1r)
+
+#Type column only works in Fred Files (temp) from Alinah
+T_adjfx2 <- dplyr::filter(T_adjfx1, Type != "0")
+nrow(T_adjfx2)
+T_adjfx2r <- dplyr::filter(T_adjfx1, Type == "0")
+nrow(T_adjfx2r)
+
+er_target <- c(0,1,2,3)
+
+#for trans data with dynamic date
+T_adjfx2 <- dplyr::mutate(filter(T_adjfx1,Exchange_Rate %in% er_target),Exchange_Rate=Retail_Rate)
+T_adjfx2r <- dplyr::filter(T_adjfx1, !(Exchange_Rate %in% er_target))
+
+#T_adjfx2 <- dplyr::mutate(T_adjfx2, adjfx = adjfx*Exchange_Rate)
+nrow(T_adjfx2)
+#fwrite(T_adjfx2,"T_adjfx.csv",row.names = FALSE)
+df2 = rbind(T_adjfx2,T_adjfx1r,T_adjfx2r)
+nrow(df2)
+nrow(df2)-nrow(df)
+
+names(df2)[names(df2) == "adjfx"] = "Gross_Amt_final"
+
